@@ -25,6 +25,7 @@ import urllib.parse
 import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, overload
+from airflow.sdk.definitions._internal.templater import Templater
 
 import attrs
 
@@ -34,6 +35,9 @@ from airflow.serialization.dag_dependency import DagDependency
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
     from urllib.parse import SplitResult
+
+    import jinja2
+    from airflow.sdk import Context
 
     from airflow.models.asset import AssetModel
     from airflow.sdk.io.path import ObjectStoragePath
@@ -305,7 +309,7 @@ class AssetWatcher:
 
 
 @attrs.define(init=False, unsafe_hash=False)
-class Asset(os.PathLike, BaseAsset):
+class Asset(os.PathLike, BaseAsset, Templater):
     """A representation of data asset dependencies between workflows."""
 
     name: str = attrs.field(
@@ -488,6 +492,21 @@ class Asset(os.PathLike, BaseAsset):
         :meta private:
         """
         return AssetProfile(name=self.name or None, uri=self.uri or None, type=Asset.__name__)
+    
+    def render_extra_field(
+        self,
+        context: Context,
+        jinja_env: jinja2.Environment | None = None,
+    ) -> None:
+        """
+        Template extra attribute.
+        :param context: Context dict with values to apply on content.
+        :param jinja_env: Jinja environment to use for rendering.
+        """
+        dag = context["dag"]
+        if not jinja_env:
+            jinja_env = self.get_template_env(dag=dag)
+        self._do_render_template_fields(self, ("extra",), context, jinja_env, set())
 
 
 class AssetRef(BaseAsset, AttrsInstance):
