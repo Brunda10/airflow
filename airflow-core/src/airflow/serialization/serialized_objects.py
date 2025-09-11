@@ -296,6 +296,9 @@ def encode_asset_condition(var: BaseAsset) -> dict[str, Any]:
             "extra": var.extra,
         }
 
+        # if getattr(var, "event_extra_template", None):
+        #     asset["event_extra_template"] = var.event_extra_template
+
         if len(var.watchers) > 0:
             asset["watchers"] = [_encode_watcher(watcher) for watcher in var.watchers]
 
@@ -357,6 +360,7 @@ def decode_asset(var: dict[str, Any]):
         uri=var["uri"],
         group=var["group"],
         extra=var["extra"],
+        # event_extra_template=var.get("event_extra_template"),
         watchers=[
             SerializedAssetWatcher(
                 name=watcher["name"],

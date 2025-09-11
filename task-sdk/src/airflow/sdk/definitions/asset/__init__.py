@@ -319,10 +319,14 @@ class Asset(os.PathLike, BaseAsset):
         default=attrs.Factory(operator.attrgetter("asset_type"), takes_self=True),
         validator=[_validate_identifier],
     )
-    extra: dict[str, Any] = attrs.field(
-        factory=dict,
-        converter=_set_extra_default,
+    extra: dict[str, Any] = (
+        attrs.field(
+            factory=dict,
+            converter=_set_extra_default,
+        ),
     )
+    event_extra_template: dict[str, Any] | None = attrs.field(factory=dict)
+
     watchers: list[AssetWatcher | SerializedAssetWatcher] = attrs.field(
         factory=list,
     )
@@ -338,6 +342,7 @@ class Asset(os.PathLike, BaseAsset):
         *,
         group: str = ...,
         extra: dict | None = None,
+        event_extra_template: dict | None = None,
         watchers: list[AssetWatcher | SerializedAssetWatcher] = ...,
     ) -> None:
         """Canonical; both name and uri are provided."""
@@ -349,6 +354,7 @@ class Asset(os.PathLike, BaseAsset):
         *,
         group: str = ...,
         extra: dict | None = None,
+        event_extra_template: dict | None = None,
         watchers: list[AssetWatcher | SerializedAssetWatcher] = ...,
     ) -> None:
         """It's possible to only provide the name, either by keyword or as the only positional argument."""
@@ -360,6 +366,7 @@ class Asset(os.PathLike, BaseAsset):
         uri: str | ObjectStoragePath,
         group: str = ...,
         extra: dict | None = None,
+        event_extra_template: dict | None = None,
         watchers: list[AssetWatcher | SerializedAssetWatcher] = ...,
     ) -> None:
         """It's possible to only provide the URI as a keyword argument."""
@@ -371,6 +378,7 @@ class Asset(os.PathLike, BaseAsset):
         *,
         group: str | None = None,
         extra: dict | None = None,
+        event_extra_template: dict | None = None,
         watchers: list[AssetWatcher | SerializedAssetWatcher] | None = None,
     ) -> None:
         if name is None and uri is None:
@@ -391,6 +399,8 @@ class Asset(os.PathLike, BaseAsset):
             kwargs["group"] = group
         if extra is not None:
             kwargs["extra"] = extra
+        if event_extra_template is not None:
+            kwargs["event_extra_template"] = event_extra_template
         if watchers is not None:
             kwargs["watchers"] = watchers
 
@@ -488,6 +498,41 @@ class Asset(os.PathLike, BaseAsset):
         :meta private:
         """
         return AssetProfile(name=self.name or None, uri=self.uri or None, type=Asset.__name__)
+
+    import jinja2
+
+    from airflow.sdk.definitions.context import Context
+
+    def render_event_extra_template(
+        self,
+        context: Context,
+        jinja_env: jinja2.Environment | None = None,
+    ) -> dict[str, Any]:
+        """
+        Render the `event_extra_template` into a plain dict that will be merged.
+
+        In AssetEvent.event_extra_template at runtime. Safe to call even if template is None.
+        """
+        template = self.event_extra_template
+        if not template:
+            return {}
+
+        if jinja_env is None:
+            # dag.get_template_env() is the canonical way to get env
+            jinja_env = context["dag"].get_template_env()
+
+        def _render(value):
+            if isinstance(value, str):
+                return jinja_env.from_string(value).render(context)
+            if isinstance(value, dict):
+                return {k: _render(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_render(v) for v in value]
+            if isinstance(value, tuple):
+                return tuple(_render(v) for v in value)
+            return value
+
+        return _render(template)
 
 
 class AssetRef(BaseAsset, AttrsInstance):
