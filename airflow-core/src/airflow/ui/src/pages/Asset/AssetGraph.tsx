@@ -16,7 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { useToken } from "@chakra-ui/react";
+import { Panel } from "react-resizable-panels";
+import { useToken,  Popover,Portal ,Button, Box,  Flex} from "@chakra-ui/react";
+import type { Direction } from "src/components/Graph/useGraphLayout";
 import { ReactFlow, Controls, Background, MiniMap, type Node as ReactFlowNode } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useParams } from "react-router-dom";
@@ -29,16 +31,22 @@ import { useGraphLayout } from "src/components/Graph/useGraphLayout";
 import { useColorMode } from "src/context/colorMode";
 import { useDependencyGraph } from "src/queries/useDependencyGraph";
 import { getReactFlowThemeStyle } from "src/theme";
+import { useLocalStorage } from "usehooks-ts";
+import { useTranslation } from "react-i18next";
+import { FiChevronDown } from "react-icons/fi";
+import {GraphOptions} from "./AssetGraphOptions";
 
 export const AssetGraph = ({ asset }: { readonly asset?: AssetResponse }) => {
   const { assetId } = useParams();
   const { colorMode = "light" } = useColorMode();
+  const { t: translate } = useTranslation(["components", "assets"]);
+  const [direction, setDirection] = useLocalStorage<Direction>(`direction-${assetId}`, "RIGHT");
 
   const { data = { edges: [], nodes: [] } } = useDependencyGraph(`asset:${assetId}`);
 
   const { data: graphData } = useGraphLayout({
     ...data,
-    direction: "RIGHT",
+    direction, // 👈 Use selected direction
     openGroupIds: [],
   });
 
@@ -61,33 +69,68 @@ export const AssetGraph = ({ asset }: { readonly asset?: AssetResponse }) => {
     },
   }));
 
+  const handleDirectionUpdate = (
+    event: SelectValueChangeDetails<{ label: string; value: Array<string> }>,
+  ) => {
+    if (event.value[0] !== undefined) {
+      setDirection(event.value[0] as Direction);
+    }
+  };
+
+
   return (
-    <ReactFlow
-      colorMode={colorMode}
-      defaultEdgeOptions={{ zIndex: 1 }}
-      edges={edges}
-      edgeTypes={edgeTypes}
-      // Fit view to selected task or the whole graph on render
-      fitView
-      maxZoom={1.5}
-      minZoom={0.25}
-      nodes={nodes}
-      nodesDraggable={false}
-      nodeTypes={nodeTypes}
-      onlyRenderVisibleElements
-      style={getReactFlowThemeStyle(colorMode)}
-    >
-      <Background />
-      <Controls showInteractive={false} />
-      <MiniMap
-        nodeStrokeColor={(node: ReactFlowNode<CustomNodeProps>) =>
-          node.data.isSelected && selectedColor !== undefined ? selectedColor : ""
-        }
-        nodeStrokeWidth={15}
-        pannable
-        zoomable
-      />
-      <DownloadButton name={asset?.name ?? asset?.uri ?? "asset"} />
-    </ReactFlow>
+    <Box display="flex" flexDirection="column" h="100%" minHeight={0} position="relative">
+      {/* Graph Panel */}
+      <Box flex="1" minHeight={0} position="relative">
+        <Box position="absolute" right="12px" top="8px" zIndex={10}>
+           {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+          <Popover.Root  autoFocus={false} positioning={{ placement: "bottom-end" }}>
+            <Popover.Trigger asChild>
+              <Button rightIcon={<FiChevronDown size={12} />} size="sm" variant="outline">
+                {translate("assets:panel.buttons.options")}
+              </Button>
+            </Popover.Trigger>
+            <Portal>
+              { }
+              <Popover.Positioner style={{ zIndex: 9999 }}>
+                <Popover.Content>
+                  <Popover.Arrow />
+                  <Popover.Body display="flex" flexDirection="column" gap={3} p={2}>
+                    <GraphOptions direction={direction} onChange={handleDirectionUpdate} translate={translate} />
+                  </Popover.Body>
+                </Popover.Content>
+              </Popover.Positioner>
+            </Portal>
+          </Popover.Root>
+        </Box>
+        <ReactFlow
+          colorMode={colorMode}
+          defaultEdgeOptions={{ zIndex: 1 }}
+          edges={edges}
+          edgeTypes={edgeTypes}
+          // Fit view to selected task or the whole graph on render
+          fitView
+          maxZoom={1.5}
+          minZoom={0.25}
+          nodes={nodes}
+          nodesDraggable={false}
+          nodeTypes={nodeTypes}
+          onlyRenderVisibleElements
+          style={getReactFlowThemeStyle(colorMode)}
+        >
+          <Background />
+          <Controls showInteractive={false} />
+          <MiniMap
+            nodeStrokeColor={(node: ReactFlowNode<CustomNodeProps>) =>
+              node.data.isSelected && selectedColor !== undefined ? selectedColor : ""
+            }
+            nodeStrokeWidth={15}
+            pannable
+            zoomable
+          />
+          <DownloadButton name={asset?.name ?? asset?.uri ?? "asset"} />
+        </ReactFlow>
+      </Box>
+    </Box>
   );
 };

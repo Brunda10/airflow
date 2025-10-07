@@ -24,6 +24,16 @@
   "group": "Group",
   "lastAssetEvent": "Last Asset Event",
   "name": "Name",
+  "panel": {
+    "buttons": {
+      "options": "Options",
+      "showGraphShortcut": "Show Graph (Press g)",
+      "showGridShortcut": "Show Grid (Press g)"
+    },
+    "graphDirection": {
+      "label": "Graph Direction"
+    }
+  },
   "producingTasks": "Producing Tasks",
   "scheduledDags": "Scheduled Dags",
   "searchPlaceholder": "Search Assets"
